@@ -1,0 +1,23 @@
+[root]
+name = "test_app"
+version = "0.1.0"
+dependencies = [
+ "cortex-m 0.1.4 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "cortex-m"
+version = "0.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+dependencies = [
+ "volatile-register 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "volatile-register"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+
+[metadata]
+"checksum cortex-m 0.1.4 (registry+https://github.com/rust-lang/crates.io-index)" = "9c8d3509c0cc0291d5e53726771034134e2472657a329fa5e07351b7a1313441"
+"checksum volatile-register 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)" = "a470889aa8f2d3ad893bd43cd90c824e63e8ac0ee5fe64c5d81a932d184fd549"
