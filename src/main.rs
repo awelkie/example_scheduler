@@ -25,7 +25,7 @@ impl<'a> TaskControlBlock<'a> {
         let null_ptr = unsafe { 0usize as *const () }; // TODO
         let func_ptr = func as *const extern "C" fn() as *const ();
         let top_of_stack = unsafe {
-            initialize_stack(stack.as_mut_ptr(), func_ptr, null_ptr)
+            initialize_stack(stack.as_mut_ptr().offset(stack.len() as isize), func_ptr, null_ptr)
         };
         TaskControlBlock {
             stack: stack,
@@ -47,6 +47,8 @@ unsafe fn initialize_stack(top_of_stack: *mut u32, func_ptr: *const (), params: 
     *(top_of_stack.offset(-2)) = func_ptr as usize as u32 & START_ADDRESS_MASK; // PC
     *(top_of_stack.offset(-3)) = TASK_RETURN_ADDRESS; // LR
     *(top_of_stack.offset(-8)) = params as usize as u32; // R0
+    *(top_of_stack.offset(-9)) = 8; // R0
+    *(top_of_stack.offset(-10)) = 9; // R0
     return top_of_stack.offset(-16);
 }
 
@@ -71,7 +73,20 @@ fn enable_systick() {
     systick.csr.write(SYSTICK_CLOCK_BIT | SYSTICK_INT_BIT | SYSTICK_ENABLE_BIT);
 }
 
+fn switch_to_task(task: &TaskControlBlock) -> ! {
+    unsafe {
+        cortex_m::register::psp::write(task.top_of_stack as *const () as usize as u32);
+        asm!("svc 0");
+
+        // Shouldn't get here
+        loop { };
+    }
+}
+
 extern "C" fn task1_func() {
+    let x = 1;
+    let y = 2;
+    let z = x + y;
     loop {
     }
 }
@@ -80,7 +95,8 @@ extern "C" fn task1_func() {
 pub extern "C" fn main() -> ! {
     let mut task1_stack = [0; 1024];
     let mut task1 = TaskControlBlock::new(task1_func, &mut task1_stack);
-    enable_systick();
+    switch_to_task(&task1);
+    //enable_systick();
     loop {}
 }
 
@@ -90,7 +106,7 @@ mod lang_items {
 }
 
 mod exception {
-    pub extern "C" fn handler() {
+    pub unsafe extern "C" fn handler() {
         unsafe {
             asm!("bkpt");
         }
@@ -98,47 +114,30 @@ mod exception {
         loop {}
     }
 
-    #[naked]
-    pub unsafe extern "C" fn pend_sv_handler() {
+    pub unsafe extern "C" fn svcall_handler() {
         asm!("mrs r0, psp");
-        asm!("isb");
-        asm!("ldr	r3, pxCurrentTCBConst");
-        asm!("ldr	r2, [r3]");
-        asm!("stmdb r0!, {r4-r11}");
-        asm!("str r0, [r2]");
-        asm!("stmdb sp!, {r3, r14}");
-        asm!("mov r0, 3");
-        asm!("msr basepri, r0");
-        asm!("bl vTaskSwitchContext");
-        asm!("mov r0, #0");
-        asm!("msr basepri, r0");
-        asm!("ldmia sp!, {r3, r14}");
-        asm!("ldr r1, [r3]");
-        asm!("ldr r0, [r1]");
-        asm!("ldmia r0!, {r4-r11}");
+        asm!("ldmfd r0!, {r4-r11}");
         asm!("msr psp, r0");
-        asm!("isb");
-        asm!("bx r14");
-        asm!(".align 4");
-        asm!("pxCurrentTCBConst: .word pxCurrentTCB");
-    }
 
-    pub extern "C" fn systick_handler() {
+        asm!("ldr lr, =0xfffffffd");
+        asm!("bx lr");
     }
 
     #[export_name = "_EXCEPTIONS"]
-    pub static EXCEPTIONS: [Option<extern "C" fn()>; 14] = [Some(handler), // NMI
-                                                            Some(handler), // Hard fault
-                                                            Some(handler), // Memmanage fault
-                                                            Some(handler), // Bus fault
-                                                            Some(handler), // Usage fault
-                                                            None, // Reserved
-                                                            None, // Reserved
-                                                            None, // Reserved
-                                                            None, // Reserved
-                                                            Some(handler), // SVCall
-                                                            None, // Reserved for Debug
-                                                            None, // Reserved
-                                                            Some(handler), // PendSV
-                                                            Some(systick_handler)]; // Systick
+    pub static EXCEPTIONS: [Option<unsafe extern "C" fn()>; 14] = [
+        Some(handler), // NMI
+        Some(handler), // Hard fault
+        Some(handler), // Memmanage fault
+        Some(handler), // Bus fault
+        Some(handler), // Usage fault
+        None, // Reserved
+        None, // Reserved
+        None, // Reserved
+        None, // Reserved
+        Some(svcall_handler), // SVCall
+        None, // Reserved for Debug
+        None, // Reserved
+        Some(handler), // PendSV
+        Some(handler), // Systick
+    ];
 }
