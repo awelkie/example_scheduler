@@ -19,7 +19,6 @@ struct TaskControlBlock<'a> {
 }
 
 impl<'a> TaskControlBlock<'a> {
-    // TODO is extern "C" required?
     // TODO does the stack need a certain alignment?
     fn new(func: extern fn(), stack: &'a mut [u32]) -> Self {
         let null_ptr = unsafe { 0usize as *const () }; // TODO
@@ -47,8 +46,6 @@ unsafe fn initialize_stack(top_of_stack: *mut u32, func_ptr: *const (), params: 
     *(top_of_stack.offset(-2)) = func_ptr as usize as u32 & START_ADDRESS_MASK; // PC
     *(top_of_stack.offset(-3)) = TASK_RETURN_ADDRESS; // LR
     *(top_of_stack.offset(-8)) = params as usize as u32; // R0
-    *(top_of_stack.offset(-9)) = 8; // R0
-    *(top_of_stack.offset(-10)) = 9; // R0
     return top_of_stack.offset(-16);
 }
 
